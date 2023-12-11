@@ -44,22 +44,6 @@ struct addrinfo* checkHost(char* host){
 	
 }
 
-void createReadRequest(int socketDescriptor, char filename[], struct sockaddr* addr, int addrlen){
-    //here goes the tutorial...
-    //first 2 bytes: the optcode, in this case 1 (RRQ)
-    //then goes the filename terminated by \0
-    //then goes the mode terminated by \0. I will use octect
-    char string[BUF_SIZE];
-    char optcode[2] = {0,1};
-    char mode[] = "octet";
-    int size;
-    int flags = 0;
-
-    size = sprintf(string,"%s%s\0%s",optcode,filename,mode);
-
-    sendto(socketDescriptor, string, size, flags, addr, addrlen);
-}
-
 int main(int argc, char* argv[]){
     if (argc != 3){
         write(STDOUT_FILENO,MSG_NOT_ARGUMENTS,34);
@@ -92,6 +76,8 @@ int main(int argc, char* argv[]){
     
     int sock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if (sock < 0) syscallError("socket: ");
+
+    //put here the put things...
 
 
     write(STDOUT_FILENO,"everything ok!!!\n", 20);
