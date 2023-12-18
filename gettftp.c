@@ -65,12 +65,20 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
     char excpAck[2];
     char ErrorCode[2] = {0,5};
     char optcodeAck[2] = {0,4};
+    
+    write(STDOUT_FILENO,"f1\n",3);
 
     sizeString = formatPacket(sedingBuffer,optcode,filename);
     sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, addr, addrlen);
     if (sizeSend < 0) syscallError("sendto: ");
-
-    ssize_t fd = open(strcat("./",filename), O_WRONLY | O_CREAT);
+	
+	write(STDOUT_FILENO,"f2\n",3);
+	char fileToWrite[100] = "./";
+	strcat(fileToWrite,filename);
+	
+    ssize_t fd = open(fileToWrite, O_WRONLY | O_CREAT);
+    
+    write(STDOUT_FILENO,"f3\n",3);
 
     do{
         sizeRecv = recvfrom(socketDescriptor,buffer,BUF_SIZE,recvflags,addr,addrlen);
@@ -79,6 +87,8 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
         excpAck[1] = aknowledge;
         recvAck[0] = buffer[2];
         recvAck[1] = buffer[3];
+        
+         write(STDOUT_FILENO,"f4\n",3);
 
         if(strncmp(buffer,ErrorCode,2)){
             lookError(buffer);
@@ -88,6 +98,7 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
         if(!(strcmp(excpAck,recvAck))){
             break;
         }
+        
 
         strncpy(writeBuffer, buffer + 4, sizeRecv-4);
         if(write(fd, writeBuffer, sizeRecv-4) == -1) syscallError("Write: ");
@@ -95,6 +106,8 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
         sizeString = formatPacket(sedingBuffer,optcode,filename);
         sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, addr, addrlen);
         if (sizeSend < 0) syscallError("sendto: ");
+        
+       
 
     }while(sizeRecv >511);
 
@@ -111,13 +124,13 @@ int formatPacket(char output[],char optcode[], char filename[]){
     packet[0] = optcode[0];
     packet[1] = optcode[1];
     for(int i = 0; i < lenFilename; i++){
-        if(filename[i] != "\0") packet[2+i] = filename[i];
+        if(filename[i] != 0) packet[2+i] = filename[i];
     }
-    packet[2+lenFilename] = "\0";
+    packet[2+lenFilename] = 0;
     for(int i = 0; i < 5; i++){
         packet[3+lenFilename+i] = mode[i];
     }
-    packet[lenPacket-1] = "\0";
+    packet[lenPacket-1] = 0;
 
     memcpy(output,packet,lenPacket);
     return lenPacket;
