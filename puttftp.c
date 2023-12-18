@@ -158,7 +158,7 @@ int main(int argc, char* argv[]){
     }   
     write(STDOUT_FILENO,"everything ok!!!\n", 20);
     
-    sendFile(sockfd, &hostaddr, filename);
+    sendFile(sockfd, hostaddr, filename);
     close(sockfd);
     exit(EXIT_SUCCESS);
 }
