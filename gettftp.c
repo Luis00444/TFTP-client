@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <fcntl.h>
 
 #define MSG_NOT_ARGUMENTS "arguments should be 2: host file\n"
 #define BUF_SIZE 512
@@ -44,7 +45,7 @@ struct addrinfo* checkHost(char* host){
 	
 }
 
-void createReadRequest(int socketDescriptor, char filename[], struct sockaddr* addr, int addrlen){
+int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* addr, int addrlen){
     //here goes the tutorial...
     //first 2 bytes: the optcode, in this case 1 (RRQ)
     //then goes the filename terminated by \0
@@ -52,12 +53,57 @@ void createReadRequest(int socketDescriptor, char filename[], struct sockaddr* a
     char string[BUF_SIZE];
     char optcode[2] = {0,1};
     char mode[] = "octet";
-    int size;
-    int flags = 0;
+    int sizeString;
+    ssize_t sizeSend;
+    ssize_t sizeRecv;
+    int sendflags = 0;
+    int recvflags = 0;
+    int aknowledge = 1;
 
-    size = sprintf(string,"%s%s\0%s",optcode,filename,mode);
+    char buffer[BUF_SIZE];
+    char recvAck[2];
+    char excpAck[2];
+    char ErrorCode[2] = {0,5};
+    char optcodeAck[2] = {0,4};
 
-    sendto(socketDescriptor, string, size, flags, addr, addrlen);
+    sizeString = sprintf(string,"%s%s\0%s",optcode,filename,mode);
+    sizeSend = sendto(socketDescriptor, string, sizeString, sendflags, addr, addrlen);
+    if (sizeSend < 0) syscallError("sendto: ");
+
+    ssize_t fd = open(strcat("./",filename), O_WRONLY | O_CREAT);
+
+    do{
+        sizeRecv = recvfrom(socketDescriptor,buffer,BUF_SIZE,recvflags,addr,addrlen);
+        if (sizeRecv < 0) syscallError("recvfrom: ");
+        excpAck[0] = 0;
+        excpAck[1] = aknowledge;
+        recvAck[0] = buffer[2];
+        recvAck[1] = buffer[3];
+
+        if(strncmp(buffer,ErrorCode,2)){
+            lookError(buffer);
+            break;
+        } 
+        
+        if(!(strcmp(excpAck,recvAck))){
+            break;
+        }
+
+        if(write(fd, &buffer[4], sizeRecv-4) == -1) syscallError("Write: ");
+        sizeString = sprintf(string,"%s%s\0%s",optcodeAck,filename,mode);
+        sizeSend = sendto(socketDescriptor, string, sizeString, sendflags, addr, addrlen);
+        if (sizeSend < 0) syscallError("sendto: ");
+
+    }while(sizeRecv >511);
+
+    write(STDOUT_FILENO,"file transfer successfull",26);
+    close(fd);
+}
+
+void lookError(char buffer[]){
+    char Message[100];
+    sprintf(Message,"%s",&buffer[4]);
+    write(STDOUT_FILENO,Message,100);
 }
 
 int main(int argc, char* argv[]){
