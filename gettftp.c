@@ -50,9 +50,9 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
     //first 2 bytes: the optcode, in this case 1 (RRQ)
     //then goes the filename terminated by \0
     //then goes the mode terminated by \0. I will use octect
-    char string[BUF_SIZE];
+    char sedingBuffer[BUF_SIZE];
+    char writeBuffer[BUF_SIZE];
     char optcode[2] = {0,1};
-    char mode[] = "octet";
     int sizeString;
     ssize_t sizeSend;
     ssize_t sizeRecv;
@@ -66,8 +66,8 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
     char ErrorCode[2] = {0,5};
     char optcodeAck[2] = {0,4};
 
-    sizeString = sprintf(string,"%s%s\0%s",optcode,filename,mode);
-    sizeSend = sendto(socketDescriptor, string, sizeString, sendflags, addr, addrlen);
+    sizeString = formatPacket(sedingBuffer,optcode,filename);
+    sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, addr, addrlen);
     if (sizeSend < 0) syscallError("sendto: ");
 
     ssize_t fd = open(strcat("./",filename), O_WRONLY | O_CREAT);
@@ -89,9 +89,11 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
             break;
         }
 
-        if(write(fd, &buffer[4], sizeRecv-4) == -1) syscallError("Write: ");
-        sizeString = sprintf(string,"%s%s\0%s",optcodeAck,filename,mode);
-        sizeSend = sendto(socketDescriptor, string, sizeString, sendflags, addr, addrlen);
+        strncpy(writeBuffer, buffer + 4, sizeRecv-4);
+        if(write(fd, writeBuffer, sizeRecv-4) == -1) syscallError("Write: ");
+        
+        sizeString = formatPacket(sedingBuffer,optcode,filename);
+        sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, addr, addrlen);
         if (sizeSend < 0) syscallError("sendto: ");
 
     }while(sizeRecv >511);
@@ -100,9 +102,29 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
     close(fd);
 }
 
+int formatPacket(char output[],char optcode[], char filename[]){
+    char mode[] = "octet";
+    int lenFilename = strlen(filename);
+    int lenPacket = lenFilename + 2 + 5 + 2; //lenfile + lenOptmode + lenMode + 2*\0
+    char packet[lenPacket];
+    
+    packet[0] = optcode[0];
+    packet[1] = optcode[1];
+    for(int i = 0; i < lenFilename; i++){
+        if(filename[i] != "\0") packet[2+i] = filename[i];
+    }
+    packet[2+lenFilename] = "\0";
+    for(int i = 0; i < 5; i++){
+        packet[3+lenFilename+i] = mode[i];
+    }
+    packet[lenPacket-1] = "\0";
+
+    memcpy(output,packet,lenPacket);
+    return lenPacket;
+}
 void lookError(char buffer[]){
     char Message[100];
-    sprintf(Message,"%s",&buffer[4]);
+    strncpy(Message, buffer + 4, EOF);
     write(STDOUT_FILENO,Message,100);
 }
 
@@ -139,6 +161,7 @@ int main(int argc, char* argv[]){
     int sock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if (sock < 0) syscallError("socket: ");
 
+    createReadRequest(sock, filename, addr, lenUsed);
 
     write(STDOUT_FILENO,"everything ok!!!\n", 20);
     
