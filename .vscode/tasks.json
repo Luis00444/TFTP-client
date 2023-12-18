@@ -7,7 +7,7 @@
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
-                "../gettftp.c",
+                "../puttftp.c",
                 "-o",
                 "../program.out"                
             ], //"${fileDirname}/${fileBasenameNoExtension}"
