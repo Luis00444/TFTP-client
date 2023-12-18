@@ -2,15 +2,15 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "C/C++: gcc compilar archivo activo",
+            "label": "gcc build",
             "command": "/usr/bin/gcc",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
-                "${file}",
+                "../gettftp.c",
                 "-o",
-                "${fileDirname}/${fileBasenameNoExtension}"
-            ],
+                "../program.out"                
+            ], //"${fileDirname}/${fileBasenameNoExtension}"
             "options": {
                 "cwd": "${fileDirname}"
             },
