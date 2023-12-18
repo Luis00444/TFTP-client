@@ -58,7 +58,9 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
     ssize_t sizeRecv;
     int sendflags = 0;
     int recvflags = 0;
-    int aknowledge = 1;
+    unsigned short aknowledge = 1;
+    struct sockaddr recvaddr;
+    int recvaddrlen = sizeof(struct sockaddr);
 
     char buffer[BUF_SIZE];
     char recvAck[2];
@@ -75,13 +77,12 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
 	write(STDOUT_FILENO,"f2\n",3);
 	char fileToWrite[100] = "./";
 	strcat(fileToWrite,filename);
-	
-    ssize_t fd = open(fileToWrite, O_WRONLY | O_CREAT);
+	char for_testing[5000];
     
     write(STDOUT_FILENO,"f3\n",3);
 
     do{
-        sizeRecv = recvfrom(socketDescriptor,buffer,BUF_SIZE,recvflags,addr,addrlen);
+        sizeRecv = recvfrom(socketDescriptor,buffer,BUF_SIZE,recvflags,&recvaddr,&recvaddrlen);
         if (sizeRecv < 0) syscallError("recvfrom: ");
         excpAck[0] = 0;
         excpAck[1] = aknowledge;
@@ -95,16 +96,11 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
             break;
         } 
         
-        if(!(strcmp(excpAck,recvAck))){
-            break;
-        }
+        strcat(for_testing,writeBuffer);
         
-
-        strncpy(writeBuffer, buffer + 4, sizeRecv-4);
-        if(write(fd, writeBuffer, sizeRecv-4) == -1) syscallError("Write: ");
-        
-        sizeString = formatPacket(sedingBuffer,optcode,filename);
-        sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, addr, addrlen);
+        sizeString = formatAck(sedingBuffer,aknowledge);
+        printf("to send to");
+        sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, &recvaddr, recvaddrlen);
         if (sizeSend < 0) syscallError("sendto: ");
         
        
@@ -112,9 +108,19 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
     }while(sizeRecv >511);
 
     write(STDOUT_FILENO,"file transfer successfull",26);
-    close(fd);
 }
 
+int formatAck(char output[], int block){
+    char optcode[2] = {0,4};
+    char blockchar[2] = {0,block};
+    
+    output[0] = optcode[0];
+    output[1] = optcode[1];
+    output[2] = blockchar[0];
+    output[3] = blockchar[1];
+
+    return 4;
+}
 int formatPacket(char output[],char optcode[], char filename[]){
     char mode[] = "octet";
     int lenFilename = strlen(filename);
