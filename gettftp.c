@@ -102,10 +102,10 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
         printf("to send to");
         sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, &recvaddr, recvaddrlen);
         if (sizeSend < 0) syscallError("sendto: ");
-        
+        aknowledge++;
        
 
-    }while(sizeRecv >511);
+    }while(sizeRecv >516);
 
     write(STDOUT_FILENO,"file transfer successfull",26);
 }
