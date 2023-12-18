@@ -46,15 +46,21 @@ struct addrinfo* checkHost(char* host){
 
 void sendWRQ(int sockfd, struct sockaddr_in *serveraddr, const char *filename) {
     char buffer[512];
-    buffer[0] = 0x00;      // First byte of opcode
-    buffer[1] = 0x02;      // Second byte of opcode for WRQ
 
-    // Copy filename and mode into the buffer
+    buffer[0] = 0;
+    buffer[1] = 2;
+
     strcpy(buffer + 2, filename);
-    strcpy(buffer + 2 + strlen(filename) + 1, "octet");
+    size_t filename_len = strlen(filename);
+    buffer[2 + filename_len] = 0; // END OF FILENAME
 
-    // Calculate the length of the packet
-    int len = 2 + strlen(filename) + 1 + strlen("octet") + 1;
+    const char *mode = "octet";  // TFTP uses "octet" mode
+    strcpy(buffer + 3 + filename_len, mode);
+
+    size_t mode_len = strlen(mode);
+    buffer[3 + filename_len + mode_len] = 0; 
+
+    int len = 2 + filename_len + 1 + mode_len + 1; // Total length
 
     ssize_t bytes_sent = sendto(sockfd, buffer, len, 0, (struct sockaddr *)serveraddr, sizeof(*serveraddr));
     if (bytes_sent == -1) {
@@ -68,48 +74,51 @@ void sendWRQ(int sockfd, struct sockaddr_in *serveraddr, const char *filename) {
 
 
 void sendFile(int sockfd, struct sockaddr_in *serveraddr, const char *filename) {
+    sendWRQ(sockfd, serveraddr, filename);
+
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
         perror("Error opening file");
         return;
     }
-    char buffer[512];
-    int block = 1;
-    int n = sizeof(*serveraddr);
-    socklen_t serverlen = sizeof(*serveraddr);
-    while (1) {
-        int bytesRead = fread(buffer + 4, 1, 512 - 4, file);
-        if (bytesRead < 0) {
-            perror("Error reading file");
-            break;
-        }
-        buffer[0] = 0;
-        buffer[1] = 3; // Opcode for DATA
+
+    char buffer[516];
+    int block = 0;
+    int bytesRead;
+    int serverlen = sizeof(*serveraddr);
+
+    do {
+        block++;
+
+        bytesRead = fread(buffer + 4, 1, 512, file);
+
+        buffer[0] = 0x00;
+        buffer[1] = 0x03;
         buffer[2] = (block >> 8) & 0xFF;
         buffer[3] = block & 0xFF;
-        n = sendto(sockfd, buffer, bytesRead + 4, 0, (struct sockaddr *)serveraddr, serverlen);
-        if (n < 0) {
-            perror("Error sending DATA");
+
+        ssize_t bytes_sent = sendto(sockfd, buffer, bytesRead + 4, 0, (struct sockaddr *)serveraddr, serverlen);
+        if (bytes_sent < 0) {
+            perror("sendto failed");
             break;
         }
-        n = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)serveraddr, &serverlen);
-        if (n < 0) {
-            perror("Error receiving ACK");
+
+        ssize_t ack_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)serveraddr, &serverlen);
+        if (ack_received < 0) {
+            perror("recvfrom failed");
             break;
         }
-        // Check for ACK
-        if (buffer[1] != 4 || buffer[2] != (block >> 8) || buffer[3] != (block & 0xFF)) {
-            printf("Invalid ACK\n");
+
+        if (buffer[1] != 0x04 || buffer[2] != (block >> 8) || buffer[3] != (block & 0xFF)) {
+            printf("Incorrect ACK for block %d\n", block);
             break;
         }
-        if (bytesRead < 512 - 4) {
-            // Last block
-            break;
-        }
-        block++;
-    }
+
+    } while (bytesRead == 512); // If we read fewer than 512 bytes, we've reached the end of the file
+
     fclose(file);
 }
+
 
 int main(int argc, char* argv[]){
     if (argc != 3){
