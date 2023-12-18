@@ -68,28 +68,28 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
     char ErrorCode[2] = {0,5};
     char optcodeAck[2] = {0,4};
     
-    write(STDOUT_FILENO,"f1\n",3);
 
     sizeString = formatPacket(sedingBuffer,optcode,filename);
     sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, addr, addrlen);
     if (sizeSend < 0) syscallError("sendto: ");
 	
-	write(STDOUT_FILENO,"f2\n",3);
 	char fileToWrite[100] = "./";
 	strcat(fileToWrite,filename);
 	char for_testing[5000];
+	char debug[100];
+	int debuglen;
     
-    write(STDOUT_FILENO,"f3\n",3);
 
     do{
         sizeRecv = recvfrom(socketDescriptor,buffer,BUF_SIZE,recvflags,&recvaddr,&recvaddrlen);
         if (sizeRecv < 0) syscallError("recvfrom: ");
+        if (sizeRecv == 0) break;
         excpAck[0] = 0;
         excpAck[1] = aknowledge;
         recvAck[0] = buffer[2];
         recvAck[1] = buffer[3];
         
-         write(STDOUT_FILENO,"f4\n",3);
+        aknowledge = (unsigned short) recvAck[1];
 
         if(strncmp(buffer,ErrorCode,2)){
             lookError(buffer);
@@ -102,10 +102,11 @@ int createReadRequest(int socketDescriptor, char filename[], struct sockaddr* ad
         printf("to send to");
         sizeSend = sendto(socketDescriptor, sedingBuffer, sizeString, sendflags, &recvaddr, recvaddrlen);
         if (sizeSend < 0) syscallError("sendto: ");
-        aknowledge++;
-       
+        
+        debuglen = sprintf(debug,"%d\n",sizeRecv);
+        write(STDOUT_FILENO,debug,debuglen);
 
-    }while(sizeRecv >516);
+    }while(sizeRecv >511);
 
     write(STDOUT_FILENO,"file transfer successfull",26);
 }
